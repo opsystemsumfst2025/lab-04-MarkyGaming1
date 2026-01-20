@@ -13,6 +13,7 @@ int* array = NULL;
 int found_at = -1;
 
 // TODO: Deklaralj egy mutexet a found_at vedelmere
+pthread_mutex_t lock;
 
 // Struktura a szalak parametereinek atadasahoz
 typedef struct {
@@ -30,13 +31,31 @@ void* search_thread(void* arg) {
     
     // TODO: Irj egy ciklust data->start_index-tol data->end_index-ig
     // TODO: Minden iteracioban ellenorizd:
-    //       1. Megtalaltam mar a -1-et? (ellenorizd a found_at flaget mutex-al)
-    //       2. Ha igen, lepj ki a ciklusbol (break)
-    //       3. Ha nem, vizsgald meg az aktualis elemet
-    //       4. Ha az aktualis elem -1, zarold a mutexet, allitsd be a found_at-ot, oldsd fel a mutexet
+    //        1. Megtalaltam mar a -1-et? (ellenorizd a found_at flaget mutex-al)
+    //        2. Ha igen, lepj ki a ciklusbol (break)
+    //        3. Ha nem, vizsgald meg az aktualis elemet
+    //        4. Ha az aktualis elem -1, zarold a mutexet, allitsd be a found_at-ot, oldsd fel a mutexet
     
     // TIPP: Optimalizalas miatt ne minden iteracioban ellenorizd a flaget,
-    //       hanem csak minden 10000. elemnel
+    //        hanem csak minden 10000. elemnel
+
+    for (int i = data->start_index; i < data->end_index; i++) {
+        if (i % 10000 == 0) {
+            pthread_mutex_lock(&lock);
+            if (found_at != -1) {
+                pthread_mutex_unlock(&lock);
+                break;
+            }
+            pthread_mutex_unlock(&lock);
+        }
+
+        if (array[i] == -1) {
+            pthread_mutex_lock(&lock);
+            found_at = i;
+            pthread_mutex_unlock(&lock);
+            break;
+        }
+    }
     
     return NULL;
 }
@@ -64,6 +83,7 @@ int main() {
     printf("A -1 elhelyezve a(z) %d. pozicion\n\n", target_position);
     
     // TODO: Inicializald a mutexet
+    pthread_mutex_init(&lock, NULL);
     
     printf("Kereses %d szallal...\n", NUM_THREADS);
     
@@ -78,9 +98,20 @@ int main() {
     // thread_data[i].start_index = i * chunk_size;
     // thread_data[i].end_index = (i == NUM_THREADS - 1) ? ARRAY_SIZE : (i + 1) * chunk_size;
     
+    for (int i = 0; i < NUM_THREADS; i++) {
+        thread_data[i].thread_id = i;
+        thread_data[i].start_index = i * chunk_size;
+        thread_data[i].end_index = (i == NUM_THREADS - 1) ? ARRAY_SIZE : (i + 1) * chunk_size;
+        pthread_create(&threads[i], NULL, search_thread, &thread_data[i]);
+    }
+
     // TODO: Vard meg a szalakat
-    
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
     // TODO: Szuntessed meg a mutexet
+    pthread_mutex_destroy(&lock);
     
     printf("\nKereses befejezve.\n");
     
